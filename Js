@@ -1,0 +1,45 @@
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+// Port cho web server
+const PORT = 8080;
+// Tên file bạn muốn phục vụ
+const FILE_NAME = 'test.ico';
+// File log
+const LOG_FILE = 'access.log';
+
+const server = http.createServer((req, res) => {
+    // Lấy IP client
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    const timestamp = new Date().toISOString();
+
+    // Ghi log
+    const logEntry = `[${timestamp}] IP: ${ip} - UA: ${userAgent} - URL: ${req.url}\n`;
+    fs.appendFile(LOG_FILE, logEntry, (err) => {
+        if (err) console.error('Lỗi ghi log:', err);
+    });
+
+    // Đường dẫn đến file test.ico
+    const filePath = path.join(__dirname, FILE_NAME);
+
+    fs.readFile(filePath, (err, data) => {
+        if (err) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('File not found');
+            return;
+        }
+
+        // Thiết lập header phù hợp với file .ico
+        res.writeHead(200, {
+            'Content-Type': 'image/x-icon',
+            'Content-Length': data.length
+        });
+        res.end(data);
+    });
+});
+
+server.listen(PORT, () => {
+    console.log(`Server đang chạy tại http://localhost:${PORT}`);
+});
