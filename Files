@@ -1,28 +1,37 @@
 import os
 import shutil
-from pathlib import Path
+import time
 
-# Base path containing the folders A, A1, etc.
-base_path = Path(r'C:\Users\Desktop\Documents\MobaXterm\download')
+# Base directory containing folders like A, A1, etc.
+base_path = r'C:\Users\Desktop\Documents\MobaXterm\download'
+destination_root = os.path.join(base_path, 'output', 'B')
 
-# List all top-level folders in base_path
-source_folders = [f for f in base_path.iterdir() if f.is_dir()]
+# Make sure destination folder exists
+if not os.path.exists(destination_root):
+    os.makedirs(destination_root)
 
-# Destination folder
-destination_root = base_path / 'output'
+# Loop through all folders in base_path
+for folder_name in os.listdir(base_path):
+    folder_path = os.path.join(base_path, folder_name)
 
-for folder in source_folders:
-    b_path = folder / 'B'
-    if not b_path.exists():
-        continue  # Skip if B folder does not exist
+    # Only process directories (not files)
+    if os.path.isdir(folder_path):
+        b_path = os.path.join(folder_path, 'B')
+        if not os.path.exists(b_path):
+            continue  # Skip if "B" does not exist
 
-    for file in b_path.glob('*'):
-        if file.is_file():
-            dest_folder = destination_root / 'B'
-            dest_folder.mkdir(parents=True, exist_ok=True)
+        for file_name in os.listdir(b_path):
+            file_path = os.path.join(b_path, file_name)
 
-            dest_file = dest_folder / file.name
+            if os.path.isfile(file_path):
+                dest_file = os.path.join(destination_root, file_name)
 
-            # Copy file with metadata (preserves last modified time)
-            shutil.copy2(file, dest_file)
-            print(f"Copied: {file} → {dest_file}")
+                # If file already exists, add modified time to avoid overwrite
+                if os.path.exists(dest_file):
+                    mod_time = os.path.getmtime(file_path)
+                    mod_str = time.strftime('%Y%m%d_%H%M%S', time.localtime(mod_time))
+                    name, ext = os.path.splitext(file_name)
+                    dest_file = os.path.join(destination_root, '{}_{}{}'.format(name, mod_str, ext))
+
+                shutil.copy2(file_path, dest_file)
+                print("Copied: {} → {}".format(file_path, dest_file))
