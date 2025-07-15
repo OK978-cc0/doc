@@ -1,0 +1,28 @@
+import os
+import shutil
+from pathlib import Path
+
+# Base path containing the folders A, A1, etc.
+base_path = Path(r'C:\Users\Desktop\Documents\MobaXterm\download')
+
+# List all top-level folders in base_path
+source_folders = [f for f in base_path.iterdir() if f.is_dir()]
+
+# Destination folder
+destination_root = base_path / 'output'
+
+for folder in source_folders:
+    b_path = folder / 'B'
+    if not b_path.exists():
+        continue  # Skip if B folder does not exist
+
+    for file in b_path.glob('*'):
+        if file.is_file():
+            dest_folder = destination_root / 'B'
+            dest_folder.mkdir(parents=True, exist_ok=True)
+
+            dest_file = dest_folder / file.name
+
+            # Copy file with metadata (preserves last modified time)
+            shutil.copy2(file, dest_file)
+            print(f"Copied: {file} → {dest_file}")
