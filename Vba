@@ -1,0 +1,30 @@
+Sub ImportAndCombineCSV()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+    Dim folderPath As String
+    Dim fileName As String
+    Dim lastRow As Long
+    Dim textLine As String
+    Dim iFile As Integer
+    Dim firstFile As Boolean
+    firstFile = True
+
+    ' Đặt đường dẫn thư mục chứa file CSV ở đây (chỉnh lại cho đúng)
+    folderPath = "C:\duong_dan_csv\"
+
+    fileName = Dir(folderPath & "*.csv")
+    Do While fileName <> ""
+        iFile = FreeFile()
+        Open folderPath & fileName For Input As #iFile
+        Do While Not EOF(iFile)
+            Line Input #iFile, textLine
+            If firstFile Or Not InStr(textLine, ",") = 0 Then
+                lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row + 1
+                ws.Cells(lastRow, 1).Value = textLine
+            End If
+        Loop
+        Close #iFile
+        firstFile = False
+        fileName = Dir
+    Loop
+End Sub
