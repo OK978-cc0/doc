@@ -1,0 +1,58 @@
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+const PORT = 8080;
+
+function detectBrowser(userAgent) {
+  if (userAgent.includes('Edg/')) return 'edge';
+  if (userAgent.includes('Firefox/')) return 'firefox';
+  if (userAgent.includes('Chrome/') && !userAgent.includes('Edg/')) return 'chrome';
+  return 'unsupported';
+}
+
+function serveHtml(res, filePath) {
+  fs.readFile(filePath, 'utf8', (err, data) => {
+    if (err) {
+      res.writeHead(500, { 'Content-Type': 'text/html' });
+      res.end('<h2>Server error</h2>');
+    } else {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(data);
+    }
+  });
+}
+
+const server = http.createServer((req, res) => {
+  const ua = req.headers['user-agent'] || '';
+  const browser = detectBrowser(ua);
+
+  // Block direct access to template files
+  if (req.url.startsWith('/templates')) {
+    res.writeHead(403, { 'Content-Type': 'text/html' });
+    return res.end('<h2>Access Denied</h2>');
+  }
+
+  // Route based on detected browser
+  let fileToServe = '';
+  switch (browser) {
+    case 'chrome':
+      fileToServe = path.join(__dirname, 'templates', 'chrome.html');
+      break;
+    case 'firefox':
+      fileToServe = path.join(__dirname, 'templates', 'firefox.html');
+      break;
+    case 'edge':
+      fileToServe = path.join(__dirname, 'templates', 'edge.html');
+      break;
+    default:
+      res.writeHead(400, { 'Content-Type': 'text/html' });
+      return res.end('<h2>Unsupported browser</h2>');
+  }
+
+  serveHtml(res, fileToServe);
+});
+
+server.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
