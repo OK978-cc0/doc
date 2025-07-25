@@ -1,0 +1,8 @@
+Get-Content tenfile.txt | ForEach-Object {
+  $fields = $_ -split ","
+  for ($i = 0; $i -lt $fields.Length - 1; $i++) {
+    if ($fields[$i] -match '\.cmd$') {
+      Write-Output "$($fields[$i]),$($fields[$i+1])"
+    }
+  }
+}
