@@ -1,0 +1,17 @@
+Sub UnhideEverything()
+    Dim ws As Worksheet
+    For Each ws In ThisWorkbook.Sheets
+        ws.Visible = xlSheetVisible
+        With ws.UsedRange
+            .Font.Color = RGB(0, 0, 0)
+            .NumberFormat = "General"
+        End With
+    Next ws
+
+    ' Xóa sheet Dummy nếu tồn tại
+    Application.DisplayAlerts = False
+    On Error Resume Next
+    ThisWorkbook.Sheets("Dummy").Delete
+    On Error GoTo 0
+    Application.DisplayAlerts = True
+End Sub
