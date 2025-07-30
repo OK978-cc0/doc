@@ -1,0 +1,12 @@
+from openpyxl import load_workbook
+
+file_path = "file.xlsx"
+wb = load_workbook(file_path)
+
+# Tạo sheet dummy nếu chưa có
+if "Dummy" not in wb.sheetnames:
+    dummy = wb.create_sheet("Dummy", 0)  # Thêm vào đầu danh sách sheet
+    dummy["A1"] = "This is a placeholder sheet."
+
+# Lưu lại
+wb.save("file_with_dummy.xlsx")
