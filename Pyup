@@ -1,0 +1,24 @@
+from openpyxl import load_workbook
+from openpyxl.styles import Font
+
+file_path = "file.xlsx"
+wb = load_workbook(file_path)
+
+sheets = wb.sheetnames
+
+for i, ws_name in enumerate(sheets):
+    ws = wb[ws_name]
+
+    # 1. Ẩn nội dung bằng cách làm chữ trắng và format ẩn
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.value is not None:
+                cell.font = Font(color="FFFFFF")
+                cell.number_format = ";;;"
+
+    # 2. Chỉ ẩn sheet nếu không phải sheet cuối cùng
+    if i != len(sheets) - 1:
+        ws.sheet_state = 'hidden'
+
+# Lưu file lại
+wb.save("hidden_file.xlsx")
