@@ -1,0 +1,31 @@
+# UTF-8 encoded version file
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(1, 0, 0, 0),
+    prodvers=(1, 0, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x4,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        '040904B0',
+        [
+          StringStruct('CompanyName', 'My Company'),
+          StringStruct('FileDescription', 'Test Hidden CMD Executor'),
+          StringStruct('FileVersion', '1.0.0.0'),
+          StringStruct('InternalName', 'fake-exe'),
+          StringStruct('OriginalFilename', 'fake-exe.exe'),
+          StringStruct('ProductName', 'Silent CMD Tool'),
+          StringStruct('ProductVersion', '1.0.0.0'),
+          StringStruct('LegalCopyright', '© 2025 My Company')
+        ]
+      )
+    ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
