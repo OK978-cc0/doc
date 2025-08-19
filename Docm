@@ -1,0 +1,20 @@
+Sub UnlockContent()
+    Dim para As Paragraph
+    Dim rng As Range
+    
+    ' Xóa dòng nhắc nhở
+    For Each para In ActiveDocument.Paragraphs
+        If InStr(para.Range.Text, "Enable Content to unlock") > 0 Then
+            para.Range.Delete
+            Exit For
+        End If
+    Next para
+    
+    ' Hiện lại toàn bộ nội dung bị ẩn
+    Set rng = ActiveDocument.Content
+    rng.Font.Hidden = False
+End Sub
+
+Private Sub Document_Open()
+    UnlockContent
+End Sub
