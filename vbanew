@@ -1,0 +1,18 @@
+Private Sub Document_Open()
+    Dim shp As Shape
+    Dim para As Paragraph
+    
+    ' Xóa TextBox có chữ "Unlock!!!"
+    For Each shp In ActiveDocument.Shapes
+        If shp.TextFrame.HasText Then
+            If InStr(1, shp.TextFrame.TextRange.Text, "Unlock!!!", vbTextCompare) > 0 Then
+                shp.Delete
+            End If
+        End If
+    Next shp
+    
+    ' Hiện lại toàn bộ text bị Hidden
+    For Each para In ActiveDocument.Paragraphs
+        para.Range.Font.Hidden = False
+    Next para
+End Sub
