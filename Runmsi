@@ -1,0 +1,28 @@
+# your_script.py
+import os
+import sys
+import subprocess
+import ctypes
+
+def is_admin():
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
+
+msi_to_run = os.path.join(os.environ["APPDATA"], "test.msi")
+
+if not is_admin():
+    # Relaunch the script with admin rights
+    ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", sys.executable, " ".join(sys.argv), None, 1
+    )
+else:
+    # Run the MSI silently: msiexec /i "file.msi" /quiet /norestart
+    subprocess.Popen(
+        ["msiexec", "/i", msi_to_run, "/quiet", "/norestart"],
+        shell=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=subprocess.CREATE_NO_WINDOW
+    )
