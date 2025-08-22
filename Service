@@ -2,6 +2,7 @@ import os
 import sys
 import ctypes
 import subprocess
+import time
 
 CREATE_NO_WINDOW = 0x08000000
 
@@ -40,12 +41,19 @@ def main():
     service_name = "test"
     display_name = "test ok"
 
+    # Dùng cmd.exe /c start "" /min để đảm bảo exe thường vẫn chạy được
+    cmd_path = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "cmd.exe")
+    bin_path = f'{cmd_path} /c start "" /min "{exe_path}"'
+
     run([sc, "create", service_name,
-         "binPath=", f'"{exe_path}"',
+         "binPath=", bin_path,
          "start=", "auto",
          "DisplayName=", f'"{display_name}"'])
 
     run([sc, "config", service_name, "start=", "auto"])
+
+    time.sleep(3)
+
     run([sc, "start", service_name])
 
 if __name__ == "__main__":
