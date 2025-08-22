@@ -1,0 +1,52 @@
+import os
+import sys
+import ctypes
+import subprocess
+
+CREATE_NO_WINDOW = 0x08000000
+
+def is_admin():
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except Exception:
+        return False
+
+def elevate():
+    params = " ".join(f'"{arg}"' for arg in sys.argv[1:])
+    ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", sys.executable, f'"{sys.argv[0]}" {params}', None, 1
+    )
+
+def run(cmd):
+    return subprocess.run(
+        cmd,
+        creationflags=CREATE_NO_WINDOW,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        shell=False
+    )
+
+def main():
+    if not is_admin():
+        elevate()
+        sys.exit(0)
+
+    localappdata = os.environ.get("LOCALAPPDATA")
+    exe_path = os.path.join(localappdata, "test", "test.exe")
+    if not os.path.isfile(exe_path):
+        sys.exit(1)
+
+    sc = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "sc.exe")
+    service_name = "test"
+    display_name = "test ok"
+
+    run([sc, "create", service_name,
+         "binPath=", f'"{exe_path}"',
+         "start=", "auto",
+         "DisplayName=", f'"{display_name}"'])
+
+    run([sc, "config", service_name, "start=", "auto"])
+    run([sc, "start", service_name])
+
+if __name__ == "__main__":
+    main()
