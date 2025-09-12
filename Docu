@@ -1,0 +1,52 @@
+import win32com.client
+import os
+import glob
+
+# Thư mục hiện tại (nơi đặt script .py)
+folder = os.path.dirname(os.path.abspath(__file__))
+
+word = win32com.client.DispatchEx("Word.Application")
+word.Visible = False
+
+try:
+    for file in glob.glob(os.path.join(folder, "*.docx")):
+        base = os.path.splitext(file)[0]
+        doc_path = base + ".doc"
+
+        print(f"[+] Đang xử lý: {os.path.basename(file)}")
+
+        # Mở file docx
+        doc = word.Documents.Open(file, False, False, False)
+
+        # Ẩn toàn bộ nội dung gốc (Ctrl+A → Hidden)
+        rng = doc.Content
+        rng.Font.Hidden = True
+
+        # Xoá textbox "Test" cũ nếu có
+        for shp in list(doc.Shapes):
+            if shp.TextFrame.HasText:
+                if "Test" in shp.TextFrame.TextRange.Text:
+                    shp.Delete()
+
+        # Thêm textbox full trang
+        textbox = doc.Shapes.AddTextbox(
+            Orientation=1,  # msoTextOrientationHorizontal
+            Left=0,
+            Top=0,
+            Width=doc.PageSetup.PageWidth,
+            Height=doc.PageSetup.PageHeight
+        )
+        textbox.Line.ForeColor.RGB = 16777215  # Viền trắng
+        textbox.TextFrame.TextRange.Text = "Test"
+
+        # Lưu dưới dạng .doc
+        doc.SaveAs(doc_path, FileFormat=0)  # wdFormatDocument = 0
+        doc.Close(SaveChanges=0)
+
+        print(f"[+] Đã lưu: {os.path.basename(doc_path)}")
+
+except Exception as e:
+    print(f"[!] Lỗi: {e}")
+
+finally:
+    word.Quit()
