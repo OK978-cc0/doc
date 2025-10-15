@@ -1,0 +1,63 @@
+# -*- coding: utf8 -*-
+import os
+import subprocess
+import json
+
+defaultPath = {
+    'agentRelease': './agent/release',
+    'incoming': './incoming',
+    'modules': './modules',
+    'poshTpl': './templates/posh.tpl',
+    'onelinerTpl': './templates/oneliner.tpl',
+    'oneLiner2Tpl': './templates/oneliner2.tpl',
+    'batchTpl': './templates/batch.tpl',
+    'msbuildTpl': './templates/msbuild.tpl',
+    'duckyTpl': './templates/ducky.tpl',
+    'javascriptTpl': './templates/javascript.tpl',
+    'javascript2Tpl': './templates/dbc2Loader.tpl',
+    'sctTpl': './templates/sct.tpl',
+    'runPSModuleTpl': './templates/runPSModule.tpl',
+    'persistTpl': './templates/persist.tpl',
+    'macroStager': '/tmp/stager.vba',
+    'batchStager': '/tmp/stager.bat',
+    'msbuildStager': '/tmp/msbuild.xml',
+    'duckyStager': '/tmp/ducky.txt',
+    'javascriptStager': '/tmp/stager.js',
+    'javascriptStager2': '/tmp/stager2.js',
+    'sctStager': '/tmp/stager.sct'
+}
+
+# --- cấu hình Dropbox token ---
+CONFIG_FILE = "config.conf"
+
+def load_token():
+    """Đọc token từ file config.conf"""
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            token = f.read().strip()
+            if token:
+                return token
+    return None
+
+def fetch_new_token():
+    """Chạy lệnh bash để lấy long-live token Dropbox (giả định script lấy token sẵn có)"""
+    cmd = ["bash", "get_dropbox_token.sh"]
+    try:
+        token = subprocess.check_output(cmd).decode().strip()
+        if token:
+            with open(CONFIG_FILE, "w") as f:
+                f.write(token)
+            return token
+    except Exception as e:
+        print("[!] Lỗi khi lấy token:", e)
+    return None
+
+# --- Lấy access token ---
+defaultAccessToken = load_token()
+if not defaultAccessToken:
+    print("[*] Không có token hợp lệ, đang tạo token mới...")
+    defaultAccessToken = fetch_new_token()
+
+# --- Cấu hình khác ---
+defaultMasterKey = ""
+defaultPollingPeriod = 8
