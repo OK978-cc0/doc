@@ -1,0 +1,54 @@
+# -*- coding: utf8 -*-
+import os
+import subprocess
+
+defaultPath = {
+    'agentRelease': './agent/release',
+    'incoming': './incoming',
+    'modules': './modules',
+    'poshTpl': './templates/posh.tpl',
+    'onelinerTpl': './templates/oneliner.tpl',
+    'oneLiner2Tpl': './templates/oneliner2.tpl',
+    'batchTpl': './templates/batch.tpl',
+    'msbuildTpl': './templates/msbuild.tpl',
+    'duckyTpl': './templates/ducky.tpl',
+    'javascriptTpl': './templates/javascript.tpl',
+    'javascript2Tpl': './templates/dbc2Loader.tpl',
+    'sctTpl': './templates/sct.tpl',
+    'runPSModuleTpl': './templates/runPSModule.tpl',
+    'persistTpl': './templates/persist.tpl',
+    'macroStager': '/tmp/stager.vba',
+    'batchStager': '/tmp/stager.bat',
+    'msbuildStager': '/tmp/msbuild.xml',
+    'duckyStager': '/tmp/ducky.txt',
+    'javascriptStager': '/tmp/stager.js',
+    'javascriptStager2': '/tmp/stager2.js',
+    'sctStager': '/tmp/stager.sct'
+}
+
+# === Bash script to fetch Dropbox token ===
+TOKEN_SCRIPT = "get_dropbox_token.sh"
+
+def fetch_new_token():
+    """Always run the bash script to fetch a new token every time this script starts."""
+    if not os.path.exists(TOKEN_SCRIPT):
+        raise FileNotFoundError(f"Script not found: {TOKEN_SCRIPT}")
+    try:
+        token = subprocess.check_output(["bash", TOKEN_SCRIPT]).decode().strip()
+        if token:
+            print("[+] Successfully fetched new Dropbox token.")
+            return token
+        else:
+            raise ValueError("The script did not return a valid token.")
+    except subprocess.CalledProcessError as e:
+        print(f"[!] Error running bash script: {e}")
+    except Exception as e:
+        print(f"[!] Unexpected error while fetching token: {e}")
+    return ""
+
+# --- Always fetch a new token on startup ---
+defaultAccessToken = fetch_new_token()
+
+# --- Other configuration values ---
+defaultMasterKey = ""
+defaultPollingPeriod = 8
