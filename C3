@@ -1,0 +1,110 @@
+using System;
+using System.Net;
+using System.Text;
+using System.IO;
+using System.Web.Script.Serialization;
+
+public class DropboxAuth
+{
+    // Hàm này dùng để lấy access_token mới từ Dropbox API bằng refresh_token
+    public static string GetAccessToken(string Basic, string refreshToken)
+    {
+        string accessToken = "";
+
+        try
+        {
+            string authorizationHeader = "Basic " + Basic;
+            string data = "grant_type=refresh_token&refresh_token=" + refreshToken;
+
+            using (WebClient webClient = new WebClient())
+            {
+                // Nếu hệ thống có proxy thì dùng
+                IWebProxy defaultProxy = WebRequest.DefaultWebProxy;
+                if (defaultProxy != null)
+                {
+                    defaultProxy.Credentials = CredentialCache.DefaultCredentials;
+                    webClient.Proxy = defaultProxy;
+                }
+
+                // Thêm các header cần thiết
+                webClient.Headers.Add("Authorization", authorizationHeader);
+                webClient.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:49.0) Gecko/20100101 Firefox/49.0");
+                webClient.Headers.Add("Content-Type", "application/x-www-form-urlencoded");
+
+                // Gửi POST request tới Dropbox API để lấy token mới
+                string jsonValue = webClient.UploadString("https://api.dropbox.com/oauth2/token", data);
+
+                // Parse JSON để lấy access_token ra
+                JavaScriptSerializer js = new JavaScriptSerializer();
+                var json = js.Deserialize<dynamic>(jsonValue);
+                accessToken = json["access_token"];
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error getting access token: " + ex.Message);
+        }
+
+        return accessToken;
+    }
+}
+
+public class DropboxHandler
+{
+    private string accessToken;
+    private string authorizationHeader;
+    private WebClient webClient;
+
+    // Constructor nhận token dạng base64(Basic:refresh_token)
+    public DropboxHandler(string token)
+    {
+        try
+        {
+            // Giải mã base64 token thành "Basic:refresh_token"
+            string decoded = Encoding.UTF8.GetString(Convert.FromBase64String(token));
+            string[] parts = decoded.Split(':');
+
+            if (parts.Length < 2)
+                throw new Exception("Invalid token format. Expected 'Basic:refresh_token'");
+
+            string Basic = parts[0];
+            string refreshToken = parts[1];
+
+            // Lấy access_token mới
+            accessToken = DropboxAuth.GetAccessToken(Basic, refreshToken);
+            authorizationHeader = "Bearer " + accessToken;
+
+            // Tạo WebClient để giao tiếp với Dropbox API
+            webClient = new WebClient();
+
+            IWebProxy defaultProxy = WebRequest.DefaultWebProxy;
+            if (defaultProxy != null)
+            {
+                defaultProxy.Credentials = CredentialCache.DefaultCredentials;
+                webClient.Proxy = defaultProxy;
+            }
+
+            // Set các header mặc định
+            webClient.Headers.Add("Authorization", authorizationHeader);
+            webClient.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:49.0) Gecko/20100101 Firefox/49.0");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error initializing DropboxHandler: " + ex.Message);
+        }
+    }
+
+    // Ví dụ hàm test gọi Dropbox API (tùy chọn)
+    public string TestConnection()
+    {
+        try
+        {
+            string response = webClient.DownloadString("https://api.dropboxapi.com/2/users/get_current_account");
+            return response;
+        }
+        catch (Exception ex)
+        {
+            return "Error connecting to Dropbox: " + ex.Message;
+        }
+    }
+}
