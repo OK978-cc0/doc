@@ -1,0 +1,78 @@
+using System;
+using System.Net;
+using System.Text;
+using System.Web.Script.Serialization;
+
+public class DropboxAuth
+{
+    public static string GetAccessToken(string Basic, string refreshToken)
+    {
+        string accessToken = "";
+
+        string authorizationHeader = "Basic " + Basic;
+        string data = "grant_type=refresh_token&refresh_token=" + refreshToken;
+
+        using (WebClient webClient = new WebClient())
+        {
+            IWebProxy defaultProxy = WebRequest.DefaultWebProxy;
+            if (defaultProxy != null)
+            {
+                defaultProxy.Credentials = CredentialCache.DefaultCredentials;
+                webClient.Proxy = defaultProxy;
+            }
+
+            webClient.Headers.Add("Authorization", authorizationHeader);
+            webClient.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:49.0) Gecko/20100101 Firefox/49.0");
+            webClient.Headers.Add("Content-Type", "application/x-www-form-urlencoded");
+
+            string jsonValue = webClient.UploadString("https://api.dropbox.com/oauth2/token", data);
+
+            JavaScriptSerializer js = new JavaScriptSerializer();
+            var json = js.Deserialize<dynamic>(jsonValue);
+            accessToken = json["access_token"];
+        }
+
+        return accessToken;
+    }
+}
+
+public class DropboxHandler
+{
+    private string accessToken;
+    private string authorizationHeader;
+    private WebClient webClient;
+
+    // token = base64(base64(client_id + ":" + client_secret) + ":" + refresh_token)
+    public DropboxHandler(string token)
+    {
+        string decodedOuter = Encoding.UTF8.GetString(Convert.FromBase64String(token));
+        string[] outerParts = decodedOuter.Split(':');
+        string innerBase64 = outerParts[0];
+        string refreshToken = outerParts[1];
+
+        string innerDecoded = Encoding.UTF8.GetString(Convert.FromBase64String(innerBase64));
+        string[] creds = innerDecoded.Split(':');
+        string Basic = Convert.ToBase64String(Encoding.UTF8.GetBytes(creds[0] + ":" + creds[1]));
+
+        accessToken = DropboxAuth.GetAccessToken(Basic, refreshToken);
+        authorizationHeader = "Bearer " + accessToken;
+
+        webClient = new WebClient();
+
+        IWebProxy defaultProxy = WebRequest.DefaultWebProxy;
+        if (defaultProxy != null)
+        {
+            defaultProxy.Credentials = CredentialCache.DefaultCredentials;
+            webClient.Proxy = defaultProxy;
+        }
+
+        webClient.Headers.Add("Authorization", authorizationHeader);
+        webClient.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:49.0) Gecko/20100101 Firefox/49.0");
+    }
+
+    public string TestConnection()
+    {
+        string response = webClient.DownloadString("https://api.dropboxapi.com/2/users/get_current_account");
+        return response;
+    }
+}
