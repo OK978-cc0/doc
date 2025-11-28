@@ -1,0 +1,57 @@
+import ssl
+import threading
+from http.server import SimpleHTTPRequestHandler, BaseHTTPRequestHandler, HTTPServer
+import socketserver
+
+DOMAIN = "test.net"
+CERT_FILE = "test.net.crt"
+KEY_FILE = "test.net.key"
+
+
+# ---------------------------
+# HTTPS SERVER (port 443)
+# ---------------------------
+def run_https():
+    handler = SimpleHTTPRequestHandler
+    httpd = socketserver.TCPServer(("0.0.0.0", 443), handler)
+
+    httpd.socket = ssl.wrap_socket(
+        httpd.socket,
+        keyfile=KEY_FILE,
+        certfile=CERT_FILE,
+        server_side=True
+    )
+
+    print(f"[+] HTTPS running at https://{DOMAIN}:443")
+    httpd.serve_forever()
+
+
+# ---------------------------
+# HTTP REDIRECT SERVER (port 80)
+# ---------------------------
+class RedirectHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        new_url = f"https://{DOMAIN}{self.path}"
+        self.send_response(301)
+        self.send_header("Location", new_url)
+        self.end_headers()
+
+
+def run_http():
+    httpd = HTTPServer(("0.0.0.0", 80), RedirectHandler)
+    print(f"[+] HTTP running at http://{DOMAIN}:80 → redirect to HTTPS")
+    httpd.serve_forever()
+
+
+# ---------------------------
+# RUN BOTH SERVERS IN THREADS
+# ---------------------------
+if __name__ == "__main__":
+    t1 = threading.Thread(target=run_https)
+    t2 = threading.Thread(target=run_http)
+
+    t1.start()
+    t2.start()
+
+    t1.join()
+    t2.join()
