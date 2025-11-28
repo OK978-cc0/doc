@@ -1,0 +1,96 @@
+import ssl
+import threading
+import os
+from http.server import SimpleHTTPRequestHandler, BaseHTTPRequestHandler, HTTPServer
+import socketserver
+from datetime import datetime
+
+DOMAIN = "test.net"
+CERT_FILE = "test.net.crt"
+KEY_FILE = "test.net.key"
+
+# -------------------------
+# PATH TO WEB FILES FOLDER
+# -------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))     # thư mục chứa server.py
+WEB_DIR = os.path.join(BASE_DIR, "files")                 # /test/files/
+
+
+# ======================
+# LOGGING FUNCTION
+# ======================
+def write_log(protocol, client_ip, method, path):
+    date = datetime.now().strftime("%y%m%d")
+    filename = f"web_{date}.txt"
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] {protocol} {client_ip} {method} {path}\n"
+
+    with open(os.path.join(BASE_DIR, filename), "a", encoding="utf-8") as f:
+        f.write(line)
+
+
+# ======================
+# HTTPS SERVER
+# ======================
+class HTTPSHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=WEB_DIR, **kwargs)
+
+    def log_message(self, format, *args):
+        client_ip = self.client_address[0]
+        method = self.command
+        path = self.path
+        write_log("HTTPS", client_ip, method, path)
+
+
+def run_https():
+    handler = HTTPSHandler
+    httpd = socketserver.TCPServer(("0.0.0.0", 443), handler)
+
+    httpd.socket = ssl.wrap_socket(
+        httpd.socket,
+        keyfile=KEY_FILE,
+        certfile=CERT_FILE,
+        server_side=True
+    )
+
+    print(f"[+] HTTPS running at https://{DOMAIN}:443 (Serving from {WEB_DIR})")
+    httpd.serve_forever()
+
+
+# ======================
+# HTTP REDIRECT SERVER
+# ======================
+class RedirectHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        client_ip = self.client_address[0]
+        write_log("HTTP", client_ip, "GET", self.path)
+
+        new_url = f"https://{DOMAIN}{self.path}"
+        self.send_response(301)
+        self.send_header("Location", new_url)
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        return
+
+
+def run_http():
+    httpd = HTTPServer(("0.0.0.0", 80), RedirectHandler)
+    print("[+] HTTP running at http://{}:80 → redirect to HTTPS".format(DOMAIN))
+    httpd.serve_forever()
+
+
+# ======================
+# RUN BOTH SERVERS
+# ======================
+if __name__ == "__main__":
+    t1 = threading.Thread(target=run_https)
+    t2 = threading.Thread(target=run_http)
+
+    t1.start()
+    t2.start()
+
+    t1.join()
+    t2.join()
