@@ -1,0 +1,144 @@
+import ssl
+import threading
+import os
+from http.server import SimpleHTTPRequestHandler, BaseHTTPRequestHandler
+import socketserver
+from datetime import datetime
+
+# -------------------------
+# Domain and certificate settings
+# -------------------------
+DOMAIN = "test.net"
+CERT_FILE = "test.net.crt"
+KEY_FILE = "test.net.key"
+
+# -------------------------
+# Web files folder
+# -------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+WEB_DIR = os.path.join(BASE_DIR, "files")
+INDEX_FILE = os.path.join(WEB_DIR, "index.html")
+
+# Assets folder prefix
+ASSETS_PREFIX = "/assets/"
+
+# ======================
+# LOG FUNCTION
+# ======================
+def write_log(protocol, client_ip, method, path):
+    date = datetime.now().strftime("%y%m%d")
+    filename = f"web_{date}.txt"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] {protocol} {client_ip} {method} {path}\n"
+
+    with open(os.path.join(BASE_DIR, filename), "a", encoding="utf-8") as f:
+        f.write(line)
+
+# ======================
+# Threaded TCP server with reuse_address
+# ======================
+class ThreadedTCPServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+
+# ======================
+# HTTPS SERVER
+# ======================
+class HTTPSHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=WEB_DIR, **kwargs)
+
+    def do_GET(self):
+        requested_path = self.path.lstrip("/")
+        file_path = os.path.join(WEB_DIR, requested_path)
+
+        # Folder → serve index.html inside folder
+        if os.path.isdir(file_path):
+            file_path = os.path.join(file_path, "index.html")
+
+        if os.path.isfile(file_path):
+            # Serve real file
+            super().do_GET()
+            write_log("HTTPS", self.client_address[0], self.command, self.path)
+        elif self.path.startswith(ASSETS_PREFIX):
+            # Asset missing → 404, do not log
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b"Not Found")
+        else:
+            # SPA fallback → always serve index.html
+            self.path = "/index.html"
+            super().do_GET()
+            write_log("HTTPS", self.client_address[0], self.command, "/index.html")
+
+    def log_message(self, format, *args):
+        return  # Disable default logging
+
+def run_https():
+    httpd = ThreadedTCPServer(("0.0.0.0", 443), HTTPSHandler)
+    httpd.socket = ssl.wrap_socket(
+        httpd.socket,
+        keyfile=KEY_FILE,
+        certfile=CERT_FILE,
+        server_side=True
+    )
+    print(f"[+] HTTPS running at https://{DOMAIN}:443 (Serving from {WEB_DIR})")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[+] HTTPS server stopped")
+        httpd.server_close()
+
+# ======================
+# HTTP REDIRECT SERVER
+# ======================
+class RedirectHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        requested_path = self.path.lstrip("/")
+        file_path = os.path.join(WEB_DIR, requested_path)
+
+        if os.path.isdir(file_path):
+            file_path = os.path.join(file_path, "index.html")
+
+        if os.path.isfile(file_path):
+            new_url = f"https://{DOMAIN}{self.path}"
+            write_log("HTTP", self.client_address[0], "GET", self.path)
+        elif not self.path.startswith(ASSETS_PREFIX):
+            # SPA fallback
+            new_url = f"https://{DOMAIN}/index.html"
+            write_log("HTTP", self.client_address[0], "GET", self.path)
+        else:
+            # Asset missing → 404
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b"Not Found")
+            return
+
+        # Redirect to HTTPS
+        self.send_response(301)
+        self.send_header("Location", new_url)
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        return  # Disable default logging
+
+def run_http():
+    httpd = ThreadedTCPServer(("0.0.0.0", 80), RedirectHandler)
+    print(f"[+] HTTP running at http://{DOMAIN}:80 → redirect to HTTPS")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[+] HTTP redirect server stopped")
+        httpd.server_close()
+
+# ======================
+# RUN BOTH SERVERS
+# ======================
+if __name__ == "__main__":
+    t1 = threading.Thread(target=run_https)
+    t2 = threading.Thread(target=run_http)
+
+    t1.start()
+    t2.start()
+
+    t1.join()
+    t2.join()
