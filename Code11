@@ -1,0 +1,133 @@
+import ssl
+import threading
+import os
+from http.server import SimpleHTTPRequestHandler, BaseHTTPRequestHandler
+import socketserver
+from datetime import datetime
+
+# -------------------------
+# Domain and certificate settings
+# -------------------------
+DOMAIN = "test.net"
+CERT_FILE = "test.net.crt"
+KEY_FILE = "test.net.key"
+
+# -------------------------
+# Web files folder
+# -------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+WEB_DIR = os.path.join(BASE_DIR, "files")
+INDEX_FILE = os.path.join(WEB_DIR, "index.html")
+
+# ======================
+# LOG FUNCTION
+# ======================
+def write_log(protocol, client_ip, method, path):
+    date = datetime.now().strftime("%y%m%d")
+    filename = f"web_{date}.txt"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] {protocol} {client_ip} {method} {path}\n"
+
+    with open(os.path.join(BASE_DIR, filename), "a", encoding="utf-8") as f:
+        f.write(line)
+
+# ======================
+# Threaded TCP server
+# ======================
+class ThreadedTCPServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+
+# ======================
+# HTTPS SERVER HANDLER
+# ======================
+class SPAHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=WEB_DIR, **kwargs)
+
+    def translate_path(self, path):
+        """
+        Map all non-existing files to index.html.
+        Assets missing cũng fallback về index.html.
+        """
+        path = path.split('?',1)[0].split('#',1)[0]
+        requested_path = path.lstrip("/")
+        file_path = os.path.join(WEB_DIR, requested_path)
+
+        # Folder → index.html
+        if os.path.isdir(file_path):
+            file_path = os.path.join(file_path, "index.html")
+
+        # File tồn tại → trả thật
+        if os.path.isfile(file_path):
+            return file_path
+
+        # Nếu không tồn tại → fallback index.html
+        return INDEX_FILE
+
+    def send_head(self):
+        return super().send_head()
+
+    def do_GET(self):
+        f = self.send_head()
+        if f:
+            try:
+                self.copyfile(f, self.wfile)
+            finally:
+                f.close()
+            write_log("HTTPS", self.client_address[0], "GET", self.path)
+
+    def log_message(self, format, *args):
+        return
+
+def run_https():
+    httpd = ThreadedTCPServer(("0.0.0.0", 443), SPAHandler)
+    httpd.socket = ssl.wrap_socket(
+        httpd.socket,
+        keyfile=KEY_FILE,
+        certfile=CERT_FILE,
+        server_side=True
+    )
+    print(f"[+] HTTPS running at https://{DOMAIN}:443 (Serving from {WEB_DIR})")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[+] HTTPS server stopped")
+        httpd.server_close()
+
+# ======================
+# HTTP REDIRECT HANDLER
+# ======================
+class RedirectHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        # Tất cả request → redirect HTTPS
+        new_url = f"https://{DOMAIN}{self.path}"
+        write_log("HTTP", self.client_address[0], "GET", self.path)
+
+        self.send_response(301)
+        self.send_header("Location", new_url)
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        return
+
+def run_http():
+    httpd = ThreadedTCPServer(("0.0.0.0", 80), RedirectHandler)
+    print(f"[+] HTTP running at http://{DOMAIN}:80 → redirect to HTTPS")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[+] HTTP redirect server stopped")
+        httpd.server_close()
+
+# ======================
+# RUN BOTH SERVERS
+# ======================
+if __name__ == "__main__":
+    t1 = threading.Thread(target=run_https)
+    t2 = threading.Thread(target=run_http)
+
+    t1.start()
+    t2.start()
+
+    t1.join()
+    t2.join()
