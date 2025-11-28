@@ -1,0 +1,21 @@
+import http.server
+import ssl
+import socketserver
+
+PORT = 443
+CERT_FILE = "test.net.crt"
+KEY_FILE = "test.net.key"
+
+handler = http.server.SimpleHTTPRequestHandler
+
+httpd = socketserver.TCPServer(("0.0.0.0", PORT), handler)
+
+httpd.socket = ssl.wrap_socket(
+    httpd.socket,
+    keyfile=KEY_FILE,
+    certfile=CERT_FILE,
+    server_side=True
+)
+
+print(f"HTTPS running at https://test.net:{PORT}")
+httpd.serve_forever()
