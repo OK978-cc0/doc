@@ -1,0 +1,19 @@
+import os
+import random
+
+with open("shellcode.bin","rb") as f:
+    data = f.read()
+
+k1 = random.randint(0,255)
+k2 = random.randint(0,255)
+
+enc = bytes([(b ^ k1) ^ k2 for b in data])
+
+payload = enc + bytes([k1,k2])
+
+with open("payload.bin","wb") as f:
+    f.write(payload)
+
+print("key1 =",hex(k1))
+print("key2 =",hex(k2))
+print("payload written: payload.bin")
