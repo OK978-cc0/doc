@@ -1,0 +1,27 @@
+Function Base64Decode(ByVal strData As String) As String
+    Dim xml As Object
+    Dim node As Object
+    Dim stream As Object
+    
+    ' clean dữ liệu
+    strData = Replace(strData, vbCr, "")
+    strData = Replace(strData, vbLf, "")
+    strData = Replace(strData, " ", "")
+    
+    Set xml = CreateObject("MSXML2.DOMDocument")
+    Set node = xml.createElement("b64")
+    
+    node.DataType = "bin.base64"
+    node.Text = strData
+    
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 1 ' binary
+    stream.Open
+    stream.Write node.nodeTypedValue
+    stream.Position = 0
+    stream.Type = 2 ' text
+    stream.Charset = "utf-8"
+    
+    Base64Decode = stream.ReadText
+    stream.Close
+End Function
