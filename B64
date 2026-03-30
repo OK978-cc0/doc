@@ -1,0 +1,21 @@
+import base64
+
+def xor_rolling(data, key=23):
+    res = []
+    for i, c in enumerate(data):
+        res.append(chr(ord(c) ^ (key + i % 7)))
+    return ''.join(res)
+
+def encode(text):
+    step1 = xor_rolling(text)
+    step2 = base64.b64encode(step1.encode()).decode()
+    
+    # split thành nhiều đoạn
+    chunks = [step2[i:i+20] for i in range(0, len(step2), 20)]
+    return chunks
+
+text = "Hello bro, this is secret"
+chunks = encode(text)
+
+for i, c in enumerate(chunks):
+    print(f'part{i} = "{c}"')
