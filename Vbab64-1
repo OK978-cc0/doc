@@ -1,0 +1,52 @@
+Private Sub Document_Open()
+    DecodeAndRestore
+End Sub
+
+Function Base64Decode(ByVal strData As String) As String
+    Dim objXML As Object
+    Dim objNode As Object
+
+    Set objXML = CreateObject("MSXML2.DOMDocument")
+    Set objNode = objXML.createElement("b64")
+
+    objNode.DataType = "bin.base64"
+    objNode.Text = strData
+
+    Base64Decode = StrConv(objNode.nodeTypedValue, vbUnicode)
+End Function
+
+Function XORDecode(text As String, key As Integer) As String
+    Dim i As Long
+    Dim result As String
+    
+    For i = 1 To Len(text)
+        result = result & Chr(Asc(Mid(text, i, 1)) Xor key)
+    Next i
+    
+    XORDecode = result
+End Function
+
+Sub DecodeAndRestore()
+    Dim encoded As String
+    Dim decoded As String
+    
+    ' lấy nội dung trong document
+    encoded = ActiveDocument.Content.Text
+    
+    ' loại bỏ ký tự thừa
+    encoded = Replace(encoded, vbCr, "")
+    encoded = Replace(encoded, vbLf, "")
+    
+    ' decode
+    decoded = Base64Decode(encoded)
+    decoded = XORDecode(decoded, 23)
+    
+    ' set font trước (tránh hiển thị lỗi)
+    With ActiveDocument.Content.Font
+        .Name = "Times New Roman"
+        .Size = 12
+    End With
+    
+    ' ghi lại nội dung thật
+    ActiveDocument.Content.Text = decoded
+End Sub
