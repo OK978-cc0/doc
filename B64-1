@@ -1,0 +1,27 @@
+import base64
+
+KEY = 23
+
+def xor_encode(text, key=KEY):
+    return ''.join(chr(ord(c) ^ key) for c in text)
+
+def encode(text):
+    # bước 1: XOR
+    xored = xor_encode(text)
+    
+    # bước 2: Base64
+    encoded = base64.b64encode(xored.encode()).decode()
+    
+    return encoded
+
+
+if __name__ == "__main__":
+    original = "Hello bro, this is secret"
+    
+    print("=== ORIGINAL ===")
+    print(original)
+    
+    encoded = encode(original)
+    
+    print("\n=== ENCODED (dán vào Word) ===")
+    print(encoded)
