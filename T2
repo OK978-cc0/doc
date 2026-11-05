@@ -1,0 +1,215 @@
+
+import os
+import sys
+import ctypes
+from ctypes import wintypes
+
+# Windows APIs
+shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+user32 = ctypes.WinDLL("user32", use_last_error=True)
+msi = ctypes.WinDLL("msi", use_last_error=True)
+
+shell32.IsUserAnAdmin.restype = wintypes.BOOL
+
+shell32.ShellExecuteW.argtypes = [
+    wintypes.HWND,
+    wintypes.LPCWSTR,
+    wintypes.LPCWSTR,
+    wintypes.LPCWSTR,
+    wintypes.LPCWSTR,
+    ctypes.c_int
+]
+shell32.ShellExecuteW.restype = ctypes.c_void_p
+
+msi.MsiInstallProductW.argtypes = [
+    wintypes.LPCWSTR,
+    wintypes.LPCWSTR
+]
+msi.MsiInstallProductW.restype = wintypes.UINT
+
+msi.MsiSetInternalUI.argtypes = [
+    ctypes.c_int,
+    ctypes.POINTER(wintypes.HWND)
+]
+msi.MsiSetInternalUI.restype = ctypes.c_int
+
+msi.MsiEnableLogW.argtypes = [
+    wintypes.DWORD,
+    wintypes.LPCWSTR,
+    wintypes.DWORD
+]
+msi.MsiEnableLogW.restype = wintypes.UINT
+
+
+def get_base_dir():
+    return os.path.dirname(os.path.abspath(sys.argv[0]))
+
+
+def write_log(message):
+    try:
+        log_dir = os.path.join(
+            os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
+            "UEMSAgent"
+        )
+        os.makedirs(log_dir, exist_ok=True)
+
+        with open(
+            os.path.join(log_dir, "launcher.log"),
+            "a",
+            encoding="utf-8"
+        ) as f:
+            f.write(message + "\n")
+    except Exception:
+        pass
+
+
+def is_admin():
+    try:
+        return bool(shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
+def run_as_admin():
+    base_dir = get_base_dir()
+
+    if getattr(sys, "frozen", False):
+        executable = sys.executable
+        params = "--admin"
+    else:
+        executable = sys.executable
+        params = f'"{os.path.abspath(sys.argv[0])}" --admin'
+
+    try:
+        result = shell32.ShellExecuteW(
+            None,
+            "runas",
+            executable,
+            params,
+            base_dir,
+            0
+        )
+
+        if result and result > 32:
+            return True
+
+        write_log(f"Elevation failed: {result}")
+        return False
+
+    except Exception as e:
+        write_log(f"Elevation exception: {e}")
+        return False
+
+
+def install_agent():
+
+    if not is_admin():
+        write_log("Installation aborted: Administrator required.")
+        return
+
+    base_dir = get_base_dir()
+
+    msi_path = os.path.join(base_dir, "UEMSAgent.msi")
+    mst_path = os.path.join(base_dir, "UEMSAgent.mst")
+
+    server_crt = os.path.join(
+        base_dir, "DMRootCA-Server.crt"
+    )
+
+    ds_crt = os.path.join(
+        base_dir, "DMRootCA.crt"
+    )
+
+    log_dir = os.path.join(
+        os.environ.get("ProgramData", r"C:\ProgramData"),
+        "UEMSAgent"
+    )
+
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except Exception as e:
+        write_log(f"Cannot create log directory: {e}")
+        return
+
+    msi_log = os.path.join(
+        log_dir, "Agentinstalllog.txt"
+    )
+
+    required_files = [
+        msi_path,
+        mst_path,
+        server_crt,
+        ds_crt
+    ]
+
+    for file_path in required_files:
+        if not os.path.isfile(file_path):
+            write_log(f"Missing file: {file_path}")
+            return
+
+    properties = (
+        f'TRANSFORMS="{mst_path}" '
+        'ENABLESILENT=yes '
+        'REBOOT=ReallySuppress '
+        'INSTALLSOURCE=Manual '
+        f'SERVER_ROOT_CRT="{server_crt}" '
+        f'DS_ROOT_CRT="{ds_crt}"'
+    )
+
+    try:
+        # Disable Windows Installer UI
+        msi.MsiSetInternalUI(2, None)
+
+        # Enable verbose logging
+        log_mode = (
+            0x00000800 |  # VERBOSE
+            0x00000002 |  # ERROR
+            0x00000004 |  # WARNING
+            0x00000080 |  # ACTIONSTART
+            0x00000100 |  # ACTIONDATA
+            0x00000200    # COMMONDATA
+        )
+
+        log_result = msi.MsiEnableLogW(
+            log_mode,
+            msi_log,
+            0
+        )
+
+        if log_result != 0:
+            write_log(f"MsiEnableLogW failed: {log_result}")
+            return
+
+        # Install through Windows Installer API
+        result = msi.MsiInstallProductW(
+            msi_path,
+            properties
+        )
+
+        write_log(f"MsiInstallProductW result: {result}")
+
+    except Exception as e:
+        write_log(f"Installation exception: {e}")
+
+    finally:
+        try:
+            msi.MsiEnableLogW(0, None, 0)
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+
+    if "--admin" in sys.argv:
+
+        if is_admin():
+            install_agent()
+
+        sys.exit(0)
+
+    if is_admin():
+        install_agent()
+    else:
+        run_as_admin()
+
+    sys.exit(0)
