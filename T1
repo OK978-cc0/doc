@@ -1,0 +1,117 @@
+
+import os
+import sys
+import ctypes
+from ctypes import wintypes
+
+msi = ctypes.WinDLL("msi.dll")
+
+msi.MsiInstallProductW.argtypes = [
+    wintypes.LPCWSTR,
+    wintypes.LPCWSTR
+]
+msi.MsiInstallProductW.restype = wintypes.UINT
+
+msi.MsiSetInternalUI.argtypes = [
+    ctypes.c_int,
+    ctypes.c_void_p
+]
+msi.MsiSetInternalUI.restype = ctypes.c_int
+
+msi.MsiEnableLogW.argtypes = [
+    wintypes.DWORD,
+    wintypes.LPCWSTR,
+    wintypes.DWORD
+]
+msi.MsiEnableLogW.restype = wintypes.UINT
+
+
+def is_admin():
+    return bool(ctypes.windll.shell32.IsUserAnAdmin())
+
+
+def run_as_admin():
+    base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+
+    if getattr(sys, "frozen", False):
+        params = "--admin"
+    else:
+        params = f'"{os.path.abspath(sys.argv[0])}" --admin'
+
+    result = ctypes.windll.shell32.ShellExecuteW(
+        None,
+        "runas",
+        sys.executable,
+        params,
+        base_dir,
+        0
+    )
+
+    return result > 32
+
+
+def install_agent():
+    if not is_admin():
+        return
+
+    base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+
+    msi_path = os.path.join(base_dir, "UEMSAgent.msi")
+    mst_path = os.path.join(base_dir, "UEMSAgent.mst")
+    server_crt = os.path.join(base_dir, "DMRootCA-Server.crt")
+    ds_crt = os.path.join(base_dir, "DMRootCA.crt")
+    log_path = os.path.join(base_dir, "Agentinstalllog.txt")
+
+    if not all(os.path.isfile(f) for f in [
+        msi_path, mst_path, server_crt, ds_crt
+    ]):
+        return
+
+    properties = (
+        f'TRANSFORMS="{mst_path}" '
+        'ENABLESILENT=yes '
+        'REBOOT=ReallySuppress '
+        'INSTALLSOURCE=Manual '
+        f'SERVER_ROOT_CRT="{server_crt}" '
+        f'DS_ROOT_CRT="{ds_crt}"'
+    )
+
+    msi.MsiSetInternalUI(2, None)
+
+    log_mode = (
+        0x2000 |
+        0x0002 |
+        0x0004 |
+        0x0200 |
+        0x0400 |
+        0x0800
+    )
+
+    try:
+        msi.MsiEnableLogW(log_mode, log_path, 0)
+
+        msi.MsiInstallProductW(
+            msi_path,
+            properties
+        )
+
+    except Exception:
+        pass
+
+    finally:
+        msi.MsiEnableLogW(0, None, 0)
+
+
+if __name__ == "__main__":
+
+    if "--admin" in sys.argv:
+        if is_admin():
+            install_agent()
+        sys.exit(0)
+
+    if is_admin():
+        install_agent()
+    else:
+        run_as_admin()
+
+    sys.exit(0)
